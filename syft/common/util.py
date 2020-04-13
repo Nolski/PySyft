@@ -3,6 +3,13 @@
 
 import torch
 import numpy as np
+from enum import Enum
+
+
+class TranslationTargets(Enum):
+    PYTORCH = 'torch'
+    TENSORFLOW = 'tf'
+    TENSORFLOW_JS = 'tfjs'
 
 
 def chebyshev_series(func, width, terms):

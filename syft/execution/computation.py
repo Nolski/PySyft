@@ -1,4 +1,5 @@
 import syft as sy
+from syft.common.util import TranslationTargets
 from syft.workers.abstract import AbstractWorker
 
 from syft.execution.action import Action
@@ -6,12 +7,16 @@ from syft.execution.placeholder import PlaceHolder
 from syft.execution.placeholder_id import PlaceholderId
 
 from syft_proto.execution.v1.computation_action_pb2 import ComputationAction as ComputationActionPB
+from pythreepio.threepio import Threepio
+from pythreepio.utils import Command
+from pythreepio.errors import TranslationMissing
 
 
 class ComputationAction(Action):
     """Describes mathematical operations performed on tensors"""
 
-    def __init__(self, name, target, args_, kwargs_, return_ids):
+    def __init__(self, name, target, args_, kwargs_, return_ids, 
+                 base_framework=TranslationTargets.PYTORCH.value):
         """Initialize an action
 
         Args:
@@ -35,6 +40,48 @@ class ComputationAction(Action):
         self.args = args_
         self.kwargs = kwargs_
         self.return_ids = return_ids
+        self._base_framework = base_framework
+        self.translations = self.generate_translations()
+
+    @property
+    def base_framework(self):
+        return self._base_framework
+
+    @base_framework.setter
+    def base_framework(self, value):
+        cmd = self.translations[value]
+        self.name = '.'.join(cmd.attrs)
+        self.args = cmd.args
+        self.kwargs = cmd.kwargs
+        self._base_framework = value
+
+    def generate_translations(self):
+        translations = {}
+        for target in TranslationTargets:
+            framework = target.value
+            if framework == self._base_framework:
+                continue
+            threepio = Threepio(self.base_framework, framework, None)
+            function_name = self.name.split('.')[-1]
+            try:
+                if self.target is None:
+                    # Translate normally if action isn't a method of a tensor
+                    args = self.args
+                    cmd = threepio.translate(
+                        Command(function_name, self.args, self.kwargs)
+                    )
+                else:
+                    # Otherwise reformat into proper translation
+                    args = [self.target, *self.args]
+                    cmd = threepio.translate(
+                        Command(function_name, args, self.kwargs)
+                    )
+            except TranslationMissing:
+                translations[target] = None
+                continue
+
+            translations[target] = cmd
+        return translations
 
     @property
     def contents(self):
