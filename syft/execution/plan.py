@@ -1,3 +1,4 @@
+
 from typing import List
 from typing import Tuple
 from typing import Union
@@ -16,6 +17,8 @@ from syft.execution.tracing import trace
 from syft.execution.translation.abstract import AbstractPlanTranslator
 from syft.execution.translation.default import PlanTranslatorDefault
 from syft.execution.translation.torchscript import PlanTranslatorTorchscript
+from syft.execution.translation.threepio import PlanTranslatorTfjs
+from syft.execution.translation import TranslationTarget
 from syft.generic.frameworks import framework_packages
 from syft.generic.frameworks.types import FrameworkTensor
 from syft.generic.frameworks.types import FrameworkLayerModule
@@ -112,13 +115,15 @@ class Plan(AbstractObject):
         owner: "sy.workers.BaseWorker" = None,
         tags: List[str] = None,
         description: str = None,
+        base_framework: TranslationTarget = TranslationTarget.PYTORCH.value,
+        frameworks: List[str] = TranslationTarget.list()
     ):
         AbstractObject.__init__(self, id, owner, tags, description, child=None)
 
         # Plan instance info
         self.name = name or self.__class__.__name__
 
-        self.role = role or Role()
+        self.role = role or Role(frameworks=frameworks)
 
         if role is None:
             for st in state_tensors:
@@ -130,6 +135,7 @@ class Plan(AbstractObject):
         self.is_built = is_built
         self.torchscript = None
         self.tracing = False
+        self.base_framework = base_framework
 
         # The plan has not been sent so it has no reference to remote locations
         self.pointers = dict()
@@ -610,3 +616,4 @@ class Plan(AbstractObject):
 
 # Auto-register Plan build-time translations
 Plan.register_build_translator(PlanTranslatorTorchscript)
+Plan.register_build_translator(PlanTranslatorTfjs)
